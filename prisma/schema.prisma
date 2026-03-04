@@ -1,0 +1,466 @@
+// Prisma schema for Substream SDK Platform
+// Multi-tenant streaming infrastructure for games
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// MULTI-TENANT: ORGANIZATION & APP MODELS
+// ============================================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  plan      PlanTier @default(FREE)
+
+  maxConcurrentStreams Int @default(50)
+  maxMonthlyMinutes   Int @default(10000)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apps    App[]
+  members OrgMember[]
+  apiKeys ApiKey[]
+
+  @@index([slug])
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+model OrgMember {
+  id     String        @id @default(uuid())
+  orgId  String
+  org    Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId String
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   OrgMemberRole @default(MEMBER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, userId])
+  @@index([orgId])
+  @@index([userId])
+}
+
+enum OrgMemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model App {
+  id             String       @id @default(uuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name           String
+  allowedOrigins String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  streams          Stream[]
+  chatRooms        ChatRoom[]
+  webhookEndpoints WebhookEndpoint[]
+
+  @@index([orgId])
+}
+
+model ApiKey {
+  id        String       @id @default(uuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  keyHash   String       @unique
+  prefix    String
+  name      String
+  scopes    String[]
+  rateLimit Int          @default(100)
+  isActive  Boolean      @default(true)
+
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([keyHash])
+  @@index([orgId])
+  @@index([prefix])
+}
+
+// ============================================
+// MULTI-TENANT: STREAM MODEL
+// ============================================
+
+model Stream {
+  id         String       @id @default(uuid())
+  appId      String
+  app        App          @relation(fields: [appId], references: [id], onDelete: Cascade)
+  streamerId String
+  title      String?
+  tags       String[]
+  status     StreamStatus @default(IDLE)
+
+  stageArn      String?
+  ivsChannelArn String?
+  playbackUrl   String?
+
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  maxViewers        Int @default(0)
+  currentViewers    Int @default(0)
+  totalWatchSeconds Int @default(0)
+  avgBitrateKbps    Int @default(0)
+
+  vodUrl          String?
+  vodThumbnailUrl String?
+  vodDurationSecs Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  viewerSessions StreamViewerSession[]
+  chatRoom       ChatRoom?
+
+  @@unique([appId, streamerId])
+  @@index([appId])
+  @@index([appId, status])
+  @@index([streamerId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+enum StreamStatus {
+  IDLE
+  LIVE
+  ENDED
+  FAILED
+}
+
+model StreamViewerSession {
+  id       String @id @default(uuid())
+  streamId String
+  stream   Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+
+  viewerId String
+
+  joinedAt             DateTime @default(now())
+  leftAt               DateTime?
+  watchDurationSeconds Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([streamId])
+  @@index([viewerId])
+}
+
+// ============================================
+// CHAT & ENGAGEMENT
+// ============================================
+
+model ChatRoom {
+  id       String @id @default(uuid())
+  streamId String @unique
+  stream   Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  appId    String
+  app      App    @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  ivsChatRoomArn String?
+
+  isEnabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([streamId])
+  @@index([appId])
+}
+
+// ============================================
+// WEBHOOK PERSISTENCE
+// ============================================
+
+model WebhookEndpoint {
+  id          String   @id @default(uuid())
+  appId       String
+  app         App      @relation(fields: [appId], references: [id], onDelete: Cascade)
+  url         String
+  secretHash  String
+  events      String[]
+  description String?
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliveries WebhookDelivery[]
+
+  @@index([appId])
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id         String @id @default(uuid())
+  endpointId String
+  endpoint   WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  event     String
+  payloadId String
+  attempt   Int
+  status    Int?
+  error     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([endpointId])
+  @@index([createdAt])
+}
+
+// ============================================
+// USER & RELATIONSHIP MODELS (legacy family mode)
+// ============================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String?
+  role          UserRole
+  displayName   String?
+  avatarUrl     String?
+
+  kidVerified   Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  parentProfile   ParentProfile?
+  childProfile    ChildProfile?
+  orgMemberships  OrgMember[]
+
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  PARENT
+  CHILD
+  ADMIN
+}
+
+model ParentProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  notificationsEnabled Boolean @default(true)
+  maxConcurrentViews   Int     @default(5)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  children  ParentChildRelation[]
+
+  @@index([userId])
+}
+
+model ChildProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  streamingEnabled    Boolean @default(true)
+  maxStreamDuration   Int     @default(120)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parents       ParentChildRelation[]
+  streamChannel ChildStreamChannel?
+
+  @@index([userId])
+}
+
+model ParentChildRelation {
+  id        String   @id @default(uuid())
+  parentId  String
+  childId   String
+
+  parent    ParentProfile @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  child     ChildProfile  @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  canWatch      Boolean @default(true)
+  canViewVods   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([parentId, childId])
+  @@index([parentId])
+  @@index([childId])
+}
+
+// ============================================
+// IVS STREAMING MODELS (legacy family mode)
+// ============================================
+
+model ChildStreamChannel {
+  id                    String   @id @default(uuid())
+  childId               String   @unique
+  child                 ChildProfile @relation(fields: [childId], references: [id], onDelete: Cascade)
+
+  ivsStageArn           String?  @map("ivsstagearn")
+
+  ivsChannelArn         String   @unique
+  ivsChannelName        String
+  ivsPlaybackUrl        String
+  ivsIngestEndpoint     String
+
+  ivsStreamKeyArn       String?
+  ivsStreamKeyValue     String?
+
+  ivsRecordingConfigArn String?
+
+  status                ChannelStatus @default(INACTIVE)
+  lastLiveAt            DateTime?
+  lastErrorMessage      String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  sessions              ChildStreamSession[]
+
+  @@index([childId])
+  @@index([status])
+  @@index([ivsChannelArn])
+}
+
+enum ChannelStatus {
+  INACTIVE
+  LIVE
+  ERROR
+  DISABLED
+}
+
+model ChildStreamSession {
+  id                String   @id @default(uuid())
+  channelId         String
+  channel           ChildStreamChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  childId           String
+
+  ivsStreamId       String?  @unique
+
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+
+  status            SessionStatus @default(IN_PROGRESS)
+
+  maxViewers        Int?
+  avgBitrateKbps    Int?
+  totalWatchMinutes Int?
+
+  vodMasterUrl      String?
+  vodThumbnailUrl   String?
+  vodDurationSeconds Int?
+  vodSizeBytes      BigInt?
+
+  errorMessage      String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  viewerSessions    ViewerSession[]
+
+  @@index([channelId])
+  @@index([childId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([ivsStreamId])
+}
+
+enum SessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  PROCESSING
+}
+
+model ViewerSession {
+  id                String   @id @default(uuid())
+  streamSessionId   String
+  streamSession     ChildStreamSession @relation(fields: [streamSessionId], references: [id], onDelete: Cascade)
+
+  viewerUserId      String
+
+  joinedAt          DateTime @default(now())
+  leftAt            DateTime?
+
+  watchDurationSeconds Int?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([streamSessionId])
+  @@index([viewerUserId])
+}
+
+// ============================================
+// PLAYBACK AUTHORIZATION
+// ============================================
+
+model PlaybackKeyPair {
+  id              String   @id @default(uuid())
+
+  ivsKeyPairArn   String   @unique
+  publicKeyPem    String   @db.Text
+
+  fingerprint     String   @unique
+
+  isActive        Boolean  @default(true)
+
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime?
+
+  @@index([isActive])
+  @@index([fingerprint])
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model StreamingAuditLog {
+  id          String   @id @default(uuid())
+
+  orgId       String?
+  userId      String?
+
+  action      String
+  resourceType String
+  resourceId  String
+
+  details     Json?
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([orgId])
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+}
