@@ -20,14 +20,17 @@ export async function POST(
 
     const { orgId } = await params;
 
-    const membership = await prisma.orgMember.findUnique({
-      where: { orgId_userId: { orgId, userId: auth.userId } },
-    });
-    if (!membership || membership.role === 'MEMBER') {
-      return NextResponse.json(
-        { error: 'Must be org admin or owner', code: 'FORBIDDEN' },
-        { status: 403 },
-      );
+    // API keys are org-scoped admin credentials
+    if (auth.method !== 'api_key' || auth.orgId !== orgId) {
+      const membership = await prisma.orgMember.findUnique({
+        where: { orgId_userId: { orgId, userId: auth.userId } },
+      });
+      if (!membership || membership.role === 'MEMBER') {
+        return NextResponse.json(
+          { error: 'Must be org admin or owner', code: 'FORBIDDEN' },
+          { status: 403 },
+        );
+      }
     }
 
     const body = await request.json();

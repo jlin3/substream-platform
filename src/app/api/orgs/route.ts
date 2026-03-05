@@ -39,6 +39,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure the user exists (upsert for demo/JWT users)
+    await prisma.user.upsert({
+      where: { id: auth.userId },
+      update: {},
+      create: {
+        id: auth.userId,
+        email: `${auth.userId}@substream.local`,
+        role: 'ADMIN',
+      },
+    });
+
     const org = await prisma.organization.create({
       data: {
         name: body.name,
