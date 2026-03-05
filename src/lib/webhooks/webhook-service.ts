@@ -330,12 +330,17 @@ async function attemptDelivery(
 // SIGNING
 // ============================================
 
+/**
+ * Verify a webhook signature. Pass the raw secret you received at
+ * registration time — the function hashes it before comparing.
+ */
 export function verifySignature(
   body: string,
   signature: string,
   secret: string,
 ): boolean {
-  const expected = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+  const signingKey = hashSecret(secret);
+  const expected = 'sha256=' + createHmac('sha256', signingKey).update(body).digest('hex');
   return expected === signature;
 }
 
