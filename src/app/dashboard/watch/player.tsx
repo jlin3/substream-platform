@@ -97,7 +97,7 @@ export function WatchPlayer({
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/orgs/${orgSlug}/streams?status=LIVE&limit=5`);
+        const res = await fetch(`/api/dashboard/${orgSlug}/streams?status=LIVE&limit=5`);
         if (!res.ok) return;
         const data = await res.json();
         const newLive: LiveStream[] = (data.streams || []).map((s: Record<string, unknown>) => ({

@@ -21,7 +21,7 @@ export function HighlightPoller({
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/orgs/${orgSlug}/highlights/${highlightId}`);
+        const res = await fetch(`/api/dashboard/${orgSlug}/highlights/${highlightId}`);
         if (res.ok) {
           const data = await res.json();
           setStatus(data.highlight.status);

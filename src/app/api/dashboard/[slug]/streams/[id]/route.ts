@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/session';
 
+/**
+ * PATCH /api/dashboard/:slug/streams/:id
+ * Update a stream (e.g. mark recording URL, update status).
+ * Useful for manually setting recording URLs when IVS auto-record
+ * takes time to finalize.
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string; id: string }> },

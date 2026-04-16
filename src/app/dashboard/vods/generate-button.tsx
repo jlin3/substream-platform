@@ -22,7 +22,7 @@ export function GenerateHighlightButton({
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/orgs/${orgSlug}/highlights`, {
+      const res = await fetch(`/api/dashboard/${orgSlug}/highlights`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ streamId }),

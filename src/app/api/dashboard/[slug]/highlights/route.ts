@@ -66,9 +66,9 @@ export async function POST(
   let hlStatus: 'PENDING' | 'PROCESSING' = 'PENDING';
 
   if (stream.recordingUrl) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15_000);
       const hlRes = await fetch(`${highlightServiceUrl}/api/v1/highlights`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,7 +78,6 @@ export async function POST(
         }),
         signal: controller.signal,
       });
-      clearTimeout(timer);
 
       if (hlRes.ok) {
         const hlData = await hlRes.json();
@@ -86,7 +85,9 @@ export async function POST(
         hlStatus = 'PROCESSING';
       }
     } catch (err) {
-      logger.warn({ err }, 'Highlight service unavailable, creating record as PENDING');
+      logger.warn({ err, streamId }, 'Highlight service request failed');
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

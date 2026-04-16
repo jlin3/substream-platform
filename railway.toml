@@ -1,13 +1,11 @@
-# Railway deployment configuration for IVS Streaming Backend
+# Railway deployment configuration for Substream Platform
 
 [build]
-builder = "nixpacks"
-buildCommand = "pnpm install && npx prisma generate && pnpm build"
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npx prisma migrate deploy && pnpm start"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 60
+healthcheckTimeout = 120
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
-

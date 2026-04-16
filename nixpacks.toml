@@ -1,13 +1,13 @@
-# Nixpacks configuration for IVS Streaming Backend
+# Nixpacks configuration for Substream Platform
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["corepack enable && pnpm install --frozen-lockfile"]
+cmds = ["npm install"]
 
 [phases.build]
-cmds = ["npx prisma generate && pnpm build"]
+cmds = ["npx prisma generate && npm run build"]
 
 [start]
-cmd = "npx prisma migrate deploy && pnpm start"
+cmd = "npx prisma db push --skip-generate && npm start"
