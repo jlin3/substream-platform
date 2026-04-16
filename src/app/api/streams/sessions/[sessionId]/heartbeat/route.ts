@@ -44,9 +44,7 @@ export async function POST(
       );
     }
 
-    // Verify the caller owns this session (is the child or an org admin)
     const isOwner = session.channel.child.userId === auth.userId
-      || session.childId === auth.userId
       || auth.method === 'api_key';
     if (!isOwner) {
       return NextResponse.json(

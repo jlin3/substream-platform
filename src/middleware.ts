@@ -85,8 +85,15 @@ export function middleware(request: NextRequest) {
     if (limited) return limited;
   }
 
-  // Continue with CORS headers attached
-  const response = NextResponse.next();
+  // Attach request ID for log correlation
+  const requestId = request.headers.get('x-request-id') || crypto.randomUUID();
+
+  const response = NextResponse.next({
+    request: { headers: new Headers(request.headers) },
+  });
+  response.headers.set('x-request-id', requestId);
+  request.headers.set('x-request-id', requestId);
+
   const cors = corsHeaders(origin);
   for (const [key, value] of Object.entries(cors)) {
     response.headers.set(key, value);
