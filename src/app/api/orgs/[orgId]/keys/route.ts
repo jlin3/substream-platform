@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, type AuthContext } from '@/lib/auth';
 import { generateApiKeyPair } from '@/lib/auth/api-keys';
+import { parseBody, CreateApiKeySchema } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -33,7 +35,15 @@ export async function POST(
       }
     }
 
-    const body = await request.json();
+    const raw = await request.json();
+    const parsed = parseBody(CreateApiKeySchema, raw);
+    if (parsed.error) {
+      return NextResponse.json(
+        { error: parsed.error, code: 'INVALID_PARAMS' },
+        { status: 400 },
+      );
+    }
+    const body = parsed.data!;
     const { plaintext, hash, prefix } = generateApiKeyPair();
 
     const key = await prisma.apiKey.create({
@@ -61,7 +71,7 @@ export async function POST(
       { status: 201 },
     );
   } catch (error) {
-    console.error('[Keys] Create error:', error);
+    logger.error({ err: error }, '[Keys] Create error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -110,7 +120,7 @@ export async function GET(
       })),
     });
   } catch (error) {
-    console.error('[Keys] List error:', error);
+    logger.error({ err: error }, '[Keys] List error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -165,7 +175,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, id: body.id });
   } catch (error) {
-    console.error('[Keys] Revoke error:', error);
+    logger.error({ err: error }, '[Keys] Revoke error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

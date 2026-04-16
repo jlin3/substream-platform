@@ -14,6 +14,7 @@ import {
 } from '@/lib/streaming/stage-pool';
 import { dispatchWebhookEvent } from '@/lib/webhooks/webhook-service';
 import { requireAuth, type AuthContext } from '@/lib/auth';
+import logger from '@/lib/logger';
 
 // ============================================
 // GET - Get Viewer (Subscribe) Token
@@ -73,7 +74,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[Viewer] Error getting viewer token:', error);
+    logger.error({ err: error }, '[Viewer] Error getting viewer token');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

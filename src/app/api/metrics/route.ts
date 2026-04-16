@@ -7,14 +7,19 @@
  * scraping by Prometheus, Grafana Agent, Datadog, etc.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getStagePoolStatus } from '@/lib/streaming/stage-pool';
 import { isRedisAvailable } from '@/lib/redis';
 import { prisma } from '@/lib/prisma';
+import { requireAuth, requireScopes } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+  const scopeErr = requireScopes(authResult, ['analytics:read']);
+  if (scopeErr) return scopeErr;
   const lines: string[] = [];
 
   function gauge(name: string, help: string, value: number, labels?: Record<string, string>) {

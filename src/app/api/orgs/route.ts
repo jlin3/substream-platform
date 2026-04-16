@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, type AuthContext } from '@/lib/auth';
 import { generateApiKeyPair } from '@/lib/auth/api-keys';
+import { parseBody, CreateOrgSchema } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,13 +18,15 @@ export async function POST(request: NextRequest) {
     if (authResult instanceof NextResponse) return authResult;
     const auth: AuthContext = authResult;
 
-    const body = await request.json();
-    if (!body.name || typeof body.name !== 'string') {
+    const raw = await request.json();
+    const parsed = parseBody(CreateOrgSchema, raw);
+    if (parsed.error) {
       return NextResponse.json(
-        { error: 'Missing or invalid "name"', code: 'INVALID_PARAMS' },
+        { error: parsed.error, code: 'INVALID_PARAMS' },
         { status: 400 },
       );
     }
+    const body = parsed.data!;
 
     const slug =
       body.slug ||
@@ -87,7 +91,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    console.error('[Orgs] Create error:', error);
+    logger.error({ err: error }, '[Orgs] Create error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -122,7 +126,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error('[Orgs] List error:', error);
+    logger.error({ err: error }, '[Orgs] List error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

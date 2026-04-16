@@ -14,11 +14,15 @@ import {
   viewerLeave,
   getViewerCount,
 } from '@/lib/engagement/viewer-count';
+import logger from '@/lib/logger';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ streamId: string }> },
 ) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+
   const { streamId } = await params;
   const count = await getViewerCount(streamId);
   return NextResponse.json({ streamId, viewerCount: count });
@@ -46,7 +50,7 @@ export async function POST(
     const count = await getViewerCount(streamId);
     return NextResponse.json({ streamId, viewerCount: count });
   } catch (error) {
-    console.error('[Viewers] Error:', error);
+    logger.error({ err: error }, '[Viewers] Error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -68,7 +72,7 @@ export async function DELETE(
     const count = await getViewerCount(streamId);
     return NextResponse.json({ streamId, viewerCount: count });
   } catch (error) {
-    console.error('[Viewers] Error:', error);
+    logger.error({ err: error }, '[Viewers] Error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

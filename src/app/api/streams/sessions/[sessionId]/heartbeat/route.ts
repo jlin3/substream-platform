@@ -9,12 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { StreamingError } from '@/lib/streaming';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, type AuthContext } from '@/lib/auth';
-
-interface HeartbeatPayload {
-  currentBitrateKbps?: number;
-  currentViewers?: number;
-  streamHealth?: 'healthy' | 'degraded' | 'poor';
-}
+import { parseBody, HeartbeatSchema } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -22,21 +18,38 @@ export async function POST(
 ) {
   try {
     const { sessionId } = await params;
-    const body: HeartbeatPayload = await request.json();
+    const raw = await request.json();
+    const parsed = parseBody(HeartbeatSchema, raw);
+    if (parsed.error) {
+      return NextResponse.json(
+        { error: parsed.error, code: 'INVALID_PARAMS' },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data!;
     
     const authResult = await requireAuth(request);
     if (authResult instanceof NextResponse) return authResult;
-    const _auth: AuthContext = authResult;
+    const auth: AuthContext = authResult;
 
-    // Find session
     const session = await prisma.childStreamSession.findUnique({
       where: { id: sessionId },
+      include: { channel: { select: { childId: true, child: { select: { userId: true } } } } },
     });
 
     if (!session) {
       return NextResponse.json(
         { error: 'Session not found', code: 'SESSION_NOT_FOUND' },
         { status: 404 }
+      );
+    }
+
+    const isOwner = session.channel.child.userId === auth.userId
+      || auth.method === 'api_key';
+    if (!isOwner) {
+      return NextResponse.json(
+        { error: 'Not authorized for this session', code: 'FORBIDDEN' },
+        { status: 403 }
       );
     }
 
@@ -78,7 +91,7 @@ export async function POST(
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Heartbeat error:', error);
+    logger.error({ err: error }, 'Heartbeat error');
 
     if (error instanceof StreamingError) {
       return NextResponse.json(

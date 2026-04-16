@@ -12,6 +12,7 @@ import {
   isValidReaction,
   getAllowedReactions,
 } from '@/lib/engagement/reactions';
+import logger from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -46,7 +47,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Reactions] Error:', error);
+    logger.error({ err: error }, '[Reactions] Error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

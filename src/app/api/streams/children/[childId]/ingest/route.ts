@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getIngestProvisioning, StreamingError } from '@/lib/streaming';
 import { getRealTimeIngestProvisioning } from '@/lib/streaming/stream-realtime-service';
 import { requireAuth, type AuthContext } from '@/lib/auth';
+import logger from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -46,8 +47,7 @@ export async function POST(
       });
     }
   } catch (error) {
-    console.error('Ingest provisioning error:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'no stack');
+    logger.error({ err: error }, 'Ingest provisioning error');
 
     if (error instanceof StreamingError) {
       return NextResponse.json(

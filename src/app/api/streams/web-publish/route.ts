@@ -16,6 +16,8 @@ import {
 } from '@/lib/streaming/stage-pool';
 import { dispatchWebhookEvent } from '@/lib/webhooks/webhook-service';
 import { requireAuth, requireScopes, type AuthContext } from '@/lib/auth';
+import { parseBody, WebPublishStartSchema, WebPublishStopSchema } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 // ============================================
 // POST - Start Web Publish Stream
@@ -30,18 +32,19 @@ export async function POST(request: NextRequest) {
     const scopeErr = requireScopes(auth, ['streams:write']);
     if (scopeErr) return scopeErr;
 
-    const body = await request.json();
-    const streamerId: string | undefined = body.streamerId || body.childId;
-
-    if (!streamerId) {
+    const raw = await request.json();
+    const parsed = parseBody(WebPublishStartSchema, raw);
+    if (parsed.error) {
       return NextResponse.json(
-        { error: 'Missing streamerId (or childId)', code: 'INVALID_PARAMS' },
+        { error: parsed.error, code: 'INVALID_PARAMS' },
         { status: 400 },
       );
     }
+    const body = parsed.data!;
+    const streamerId = body.streamerId || body.childId;
 
     const streamId = uuidv4();
-    const allocation = await allocateStage(streamId, auth.userId, streamerId);
+    const allocation = await allocateStage(streamId, auth.userId, streamerId!);
 
     const baseUrl =
       request.headers.get('x-forwarded-host') ||
@@ -71,7 +74,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    console.error('[WebPublish] Error starting stream:', error);
+    logger.error({ err: error }, '[WebPublish] Error starting stream');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -88,15 +91,16 @@ export async function DELETE(request: NextRequest) {
     const authResult = await requireAuth(request);
     if (authResult instanceof NextResponse) return authResult;
 
-    const body = await request.json();
-    if (!body.streamId) {
+    const raw = await request.json();
+    const parsed = parseBody(WebPublishStopSchema, raw);
+    if (parsed.error) {
       return NextResponse.json(
-        { error: 'Missing streamId', code: 'INVALID_PARAMS' },
+        { error: parsed.error, code: 'INVALID_PARAMS' },
         { status: 400 },
       );
     }
 
-    const stage = await findStageByStreamId(body.streamId);
+    const stage = await findStageByStreamId(parsed.data!.streamId);
     if (!stage) {
       return NextResponse.json(
         { error: 'Stream not found', code: 'NOT_FOUND' },
@@ -106,11 +110,11 @@ export async function DELETE(request: NextRequest) {
 
     await releaseStage(stage.arn);
 
-    dispatchWebhookEvent('stream.stopped', { streamId: body.streamId });
+    dispatchWebhookEvent('stream.stopped', { streamId: parsed.data!.streamId });
 
-    return NextResponse.json({ success: true, streamId: body.streamId });
+    return NextResponse.json({ success: true, streamId: parsed.data!.streamId });
   } catch (error) {
-    console.error('[WebPublish] Error stopping stream:', error);
+    logger.error({ err: error }, '[WebPublish] Error stopping stream');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -122,7 +126,10 @@ export async function DELETE(request: NextRequest) {
 // GET - Web Publish Status
 // ============================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+
   const poolStatus = await getStagePoolStatus();
   return NextResponse.json({
     enabled: true,

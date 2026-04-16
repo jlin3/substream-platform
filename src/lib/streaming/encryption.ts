@@ -6,6 +6,7 @@
  */
 
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
+import logger from '@/lib/logger';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
@@ -25,7 +26,7 @@ function getEncryptionKey(): Buffer {
         'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"',
       );
     }
-    console.warn('[Encryption] STREAM_KEY_ENCRYPTION_KEY not set — using ephemeral dev key');
+    logger.warn('[Encryption] STREAM_KEY_ENCRYPTION_KEY not set — using ephemeral dev key');
     return Buffer.from(randomBytes(32));
   }
 

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVODsForChild, StreamingError } from '@/lib/streaming';
 import { requireAuth, type AuthContext } from '@/lib/auth';
+import logger from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -36,7 +37,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('VOD list error:', error);
+    logger.error({ err: error }, 'VOD list error');
 
     if (error instanceof StreamingError) {
       return NextResponse.json(

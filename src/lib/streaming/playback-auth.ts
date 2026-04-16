@@ -10,6 +10,7 @@
 
 import { SignJWT, importPKCS8 } from 'jose';
 import * as crypto from 'crypto';
+import logger from '@/lib/logger';
 
 interface PlaybackTokenOptions {
   channelArn: string;
@@ -132,7 +133,7 @@ export async function generateCloudFrontSignedUrl(
   if (!cloudFrontKeyPairId || !cloudFrontPrivateKey) {
     // Fall back to unsigned URL if CloudFront signing not configured
     // This is acceptable for development but not recommended for production
-    console.warn('CloudFront signing not configured, returning unsigned URL');
+    logger.warn('CloudFront signing not configured, returning unsigned URL');
     return vodUrl;
   }
 
@@ -150,23 +151,55 @@ export async function generateCloudFrontSignedUrl(
 }
 
 /**
- * Validates that a viewer can access a specific channel
- * This is called before generating a playback token
+ * Validates that a viewer can access a specific channel.
+ * Checks parent-child relationship when applicable, or verifies the
+ * stream belongs to an org the viewer has access to.
  */
 export async function validateViewerAccess(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _viewerId: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _channelArn: string
+  viewerId: string,
+  channelArn: string
 ): Promise<boolean> {
-  // This function should check:
-  // 1. User exists and is authenticated
-  // 2. User has permission to view this channel
-  // 3. Any additional business rules (rate limits, etc.)
-  
-  // The actual implementation depends on your auth system
-  // For now, return true (access check happens in stream-service.ts)
-  return true;
+  const { prisma } = await import('../prisma');
+
+  // Check legacy family mode: parent viewing child's channel
+  const channel = await prisma.childStreamChannel.findFirst({
+    where: { ivsChannelArn: channelArn },
+    select: { childId: true },
+  });
+
+  if (channel) {
+    const parentProfile = await prisma.parentProfile.findFirst({
+      where: { user: { id: viewerId } },
+      select: { id: true },
+    });
+
+    if (parentProfile) {
+      const relation = await prisma.parentChildRelation.findFirst({
+        where: {
+          parentId: parentProfile.id,
+          childId: channel.childId,
+          canWatch: true,
+        },
+      });
+      return !!relation;
+    }
+  }
+
+  // Multi-tenant mode: verify the viewer's org owns the stream's app
+  const stream = await prisma.stream.findFirst({
+    where: { ivsChannelArn: channelArn },
+    select: { app: { select: { orgId: true } } },
+  });
+
+  if (stream) {
+    const membership = await prisma.orgMember.findFirst({
+      where: { userId: viewerId, orgId: stream.app.orgId },
+    });
+    return !!membership;
+  }
+
+  // No matching channel or stream found -- deny by default
+  return false;
 }
 
 /**

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, type AuthContext } from '@/lib/auth';
 import { getViewerCount } from '@/lib/engagement/viewer-count';
+import logger from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -76,7 +77,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[Discovery] Error:', error);
+    logger.error({ err: error }, '[Discovery] Error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

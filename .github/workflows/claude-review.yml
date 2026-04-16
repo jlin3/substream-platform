@@ -1,0 +1,107 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get diff and call Claude
+        id: claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          git fetch origin ${{ github.base_ref }} --quiet
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- '*.ts' '*.tsx' '*.js' '*.json' '*.yml' '*.toml' | head -c 60000)
+
+          if [ -z "$DIFF" ]; then
+            echo "review=No code changes to review." >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Write the Python script to a file to avoid YAML escaping issues
+          cat > /tmp/review.py << 'PYEOF'
+          import json, os, urllib.request, sys
+
+          diff = os.environ.get("DIFF", "")[:55000]
+          title = os.environ.get("PR_TITLE", "")
+
+          prompt = (
+              "You are a senior staff engineer reviewing a pull request for a "
+              "Next.js + Prisma + AWS IVS streaming backend.\n\n"
+              f"PR Title: {title}\n\n"
+              "Review the diff and provide:\n"
+              "1. A brief summary (2-3 sentences)\n"
+              "2. Security concerns (auth, injection, secrets)\n"
+              "3. Bugs or logic errors\n"
+              "4. Suggestions for improvement (max 5)\n"
+              "5. Overall: APPROVE, REQUEST_CHANGES, or COMMENT\n\n"
+              "Be concise and actionable. Skip trivial style nits.\n\n"
+              f"Diff:\n```\n{diff}\n```"
+          )
+
+          payload = {
+              "model": "claude-sonnet-4-20250514",
+              "max_tokens": 2048,
+              "messages": [{"role": "user", "content": prompt}],
+          }
+
+          req = urllib.request.Request(
+              "https://api.anthropic.com/v1/messages",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Content-Type": "application/json",
+                  "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                  "anthropic-version": "2023-06-01",
+              },
+          )
+
+          try:
+              with urllib.request.urlopen(req, timeout=120) as resp:
+                  result = json.loads(resp.read())
+                  text = result["content"][0]["text"]
+                  print(text)
+          except Exception as e:
+              print(f"Claude review failed: {e}", file=sys.stderr)
+              sys.exit(1)
+          PYEOF
+
+          REVIEW=$(DIFF="$DIFF" python3 /tmp/review.py)
+
+          # Write multiline output
+          {
+            echo "review<<REVIEW_DELIM"
+            echo "$REVIEW"
+            echo "REVIEW_DELIM"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post review comment
+        if: steps.claude.outputs.review != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = process.env.REVIEW_BODY;
+            if (!review || review.includes('Claude review failed')) {
+              console.log('Skipping - review failed or empty');
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## Claude Code Review\n\n${review}\n\n---\n*Automated review by Claude (Anthropic)*`
+            });
+        env:
+          REVIEW_BODY: ${{ steps.claude.outputs.review }}

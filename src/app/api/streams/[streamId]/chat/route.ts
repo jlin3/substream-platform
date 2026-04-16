@@ -15,6 +15,7 @@ import {
   deleteMessage,
   disconnectUser,
 } from '@/lib/chat/ivs-chat-client';
+import logger from '@/lib/logger';
 
 // ============================================
 // POST — Get or create chat room + return token
@@ -81,7 +82,7 @@ export async function POST(
       tokenExpirationTime: tokenResult.tokenExpirationTime.toISOString(),
     });
   } catch (error) {
-    console.error('[Chat] Token error:', error);
+    logger.error({ err: error }, '[Chat] Token error');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -126,7 +127,7 @@ export async function DELETE(
     await deleteMessage(chatRoom.ivsChatRoomArn, body.messageId, body.reason);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Chat] Delete message error:', error);
+    logger.error({ err: error }, '[Chat] Delete message error');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

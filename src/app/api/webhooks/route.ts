@@ -17,6 +17,9 @@ import {
   getRecentDeliveries,
   type WebhookEvent,
 } from '@/lib/webhooks/webhook-service';
+import { requireAuth, type AuthContext } from '@/lib/auth';
+import { parseBody, WebhookRegisterSchema } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 const VALID_EVENTS: WebhookEvent[] = [
   'stream.started',
@@ -37,41 +40,26 @@ const CORS_HEADERS = {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+    const auth: AuthContext = authResult;
 
-    if (!body.url || typeof body.url !== 'string') {
+    const raw = await request.json();
+    const parsed = parseBody(WebhookRegisterSchema, raw);
+    if (parsed.error) {
       return NextResponse.json(
-        { error: 'Missing or invalid "url"', code: 'INVALID_PARAMS' },
+        { error: parsed.error, code: 'INVALID_PARAMS' },
         { status: 400, headers: CORS_HEADERS },
       );
     }
-
-    try {
-      new URL(body.url);
-    } catch {
-      return NextResponse.json(
-        { error: '"url" must be a valid URL', code: 'INVALID_PARAMS' },
-        { status: 400, headers: CORS_HEADERS },
-      );
-    }
-
-    const events: WebhookEvent[] = body.events || VALID_EVENTS;
-    const invalid = events.filter((e: string) => !VALID_EVENTS.includes(e as WebhookEvent));
-    if (invalid.length > 0) {
-      return NextResponse.json(
-        {
-          error: `Invalid event(s): ${invalid.join(', ')}. Valid: ${VALID_EVENTS.join(', ')}`,
-          code: 'INVALID_PARAMS',
-        },
-        { status: 400, headers: CORS_HEADERS },
-      );
-    }
+    const body = parsed.data!;
 
     const reg = await registerWebhook({
       url: body.url,
-      events: events as WebhookEvent[],
+      events: (body.events || VALID_EVENTS) as WebhookEvent[],
       secret: body.secret,
       description: body.description,
+      appId: body.appId || auth.appId || undefined,
     });
 
     return NextResponse.json(
@@ -87,7 +75,7 @@ export async function POST(request: NextRequest) {
       { status: 201, headers: CORS_HEADERS },
     );
   } catch (error) {
-    console.error('[Webhooks API] POST error:', error);
+    logger.error({ err: error }, '[Webhooks API] POST error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500, headers: CORS_HEADERS },
@@ -99,7 +87,10 @@ export async function POST(request: NextRequest) {
 // GET - List webhooks
 // ============================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+
   const hooks = listWebhooks().map(h => ({
     id: h.id,
     url: h.url,
@@ -126,6 +117,9 @@ export async function GET() {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+
     const body = await request.json();
 
     if (!body.id) {
@@ -148,7 +142,7 @@ export async function DELETE(request: NextRequest) {
       { headers: CORS_HEADERS },
     );
   } catch (error) {
-    console.error('[Webhooks API] DELETE error:', error);
+    logger.error({ err: error }, '[Webhooks API] DELETE error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500, headers: CORS_HEADERS },

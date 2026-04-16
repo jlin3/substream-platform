@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createStreamSession, StreamingError } from '@/lib/streaming';
 import { createRealTimeSession } from '@/lib/streaming/stream-realtime-service';
 import { requireAuth, type AuthContext } from '@/lib/auth';
+import logger from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -46,7 +47,7 @@ export async function POST(
       }, { status: 201 });
     }
   } catch (error) {
-    console.error('Create session error:', error);
+    logger.error({ err: error }, 'Create session error');
 
     if (error instanceof StreamingError) {
       return NextResponse.json(
