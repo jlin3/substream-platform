@@ -105,6 +105,19 @@ async function seed() {
   });
   console.log('✅ Demo org:', demoOrg.slug);
 
+  // Demo app (required for Stream foreign key)
+  const demoApp = await prisma.app.upsert({
+    where: { id: 'demo-app-001' },
+    update: {},
+    create: {
+      id: 'demo-app-001',
+      orgId: demoOrg.id,
+      name: 'Demo Game',
+      allowedOrigins: [],
+    },
+  });
+  console.log('✅ Demo app:', demoApp.name);
+
   // Sample streams for the demo dashboard
   const sampleStreams = [
     { id: 'demo-stream-001', title: 'Epic Fortnite Match', streamerId: 'demo-user-001', streamerName: 'ProGamer99', status: 'RECORDED' as const, durationSecs: 3600, recordingUrl: 's3://demo-bucket/recordings/stream-001/' },
@@ -117,11 +130,11 @@ async function seed() {
   for (const s of sampleStreams) {
     const startedAt = new Date(Date.now() - (Math.random() * 7 * 24 * 60 * 60 * 1000));
     await prisma.stream.upsert({
-      where: { appId_streamerId: { appId: demoOrg.id, streamerId: s.streamerId + '-' + s.id } },
+      where: { appId_streamerId: { appId: demoApp.id, streamerId: s.streamerId + '-' + s.id } },
       update: {},
       create: {
         id: s.id,
-        appId: demoOrg.id,
+        appId: demoApp.id,
         orgId: demoOrg.id,
         streamerId: s.streamerId + '-' + s.id,
         streamerName: s.streamerName,
