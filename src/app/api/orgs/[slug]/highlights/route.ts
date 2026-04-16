@@ -67,6 +67,8 @@ export async function POST(
 
   if (stream.recordingUrl) {
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15_000);
       const hlRes = await fetch(`${highlightServiceUrl}/api/v1/highlights`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,7 +76,9 @@ export async function POST(
           video_uri: stream.recordingUrl,
           title: `Highlights: ${stream.title || 'Untitled Stream'}`,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
 
       if (hlRes.ok) {
         const hlData = await hlRes.json();

@@ -32,7 +32,12 @@ export async function GET(
   if (highlight.status === 'PROCESSING' && highlight.jobId) {
     const highlightServiceUrl = process.env.HIGHLIGHT_SERVICE_URL || 'http://localhost:8080';
     try {
-      const hlRes = await fetch(`${highlightServiceUrl}/api/v1/highlights/${highlight.jobId}`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      const hlRes = await fetch(`${highlightServiceUrl}/api/v1/highlights/${highlight.jobId}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
       if (hlRes.ok) {
         const hlData = await hlRes.json();
         if (hlData.status === 'completed' && hlData.result?.highlight_url) {
