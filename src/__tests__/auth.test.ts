@@ -54,6 +54,7 @@ describe('JWT sign and verify', () => {
     const token = await signJwt({
       sub: 'user-123',
       orgId: 'org-456',
+      appId: 'app-000',
       scopes: [],
     });
 
