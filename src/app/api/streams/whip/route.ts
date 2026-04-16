@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const body = parsed.data;
+    const body = parsed.data!;
     const streamerId = body.streamerId || body.childId;
 
     const streamId = uuidv4();
@@ -100,7 +100,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const stage = await findStageByStreamId(parsed.data.streamId);
+    const stage = await findStageByStreamId(parsed.data!.streamId);
     if (!stage) {
       return NextResponse.json(
         { error: 'Stream not found', code: 'NOT_FOUND' },
@@ -109,7 +109,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await releaseStage(stage.arn);
-    return NextResponse.json({ success: true, streamId: parsed.data.streamId });
+    return NextResponse.json({ success: true, streamId: parsed.data!.streamId });
   } catch (error) {
     logger.error({ err: error }, '[WHIP] Error stopping stream');
     return NextResponse.json(

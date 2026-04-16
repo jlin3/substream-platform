@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         { status: 400, headers: CORS_HEADERS },
       );
     }
-    const body = parsed.data;
+    const body = parsed.data!;
 
     const reg = await registerWebhook({
       url: body.url,

@@ -26,7 +26,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    const body = parsed.data;
+    const body = parsed.data!;
     
     const authResult = await requireAuth(request);
     if (authResult instanceof NextResponse) return authResult;

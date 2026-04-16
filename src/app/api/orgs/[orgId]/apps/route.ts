@@ -43,7 +43,7 @@ export async function POST(
         { status: 400 },
       );
     }
-    const body = parsed.data;
+    const body = parsed.data!;
 
     const app = await prisma.app.create({
       data: {

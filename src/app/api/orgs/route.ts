@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    const body = parsed.data;
+    const body = parsed.data!;
 
     const slug =
       body.slug ||
