@@ -90,6 +90,88 @@ async function seed() {
   console.log('✅ Linked demo parent to demo child\n');
 
   // =========================================================================
+  // DEMO ORGANIZATION - For dashboard demo flow
+  // =========================================================================
+  console.log('🏢 Creating demo organization for dashboard...\n');
+
+  const demoOrg = await prisma.organization.upsert({
+    where: { slug: 'substream-demo' },
+    update: {},
+    create: {
+      name: 'Substream Demo',
+      slug: 'substream-demo',
+      plan: 'PRO',
+    },
+  });
+  console.log('✅ Demo org:', demoOrg.slug);
+
+  // Sample streams for the demo dashboard
+  const sampleStreams = [
+    { id: 'demo-stream-001', title: 'Epic Fortnite Match', streamerId: 'demo-user-001', streamerName: 'ProGamer99', status: 'RECORDED' as const, durationSecs: 3600, recordingUrl: 's3://demo-bucket/recordings/stream-001/' },
+    { id: 'demo-stream-002', title: 'Minecraft Build Challenge', streamerId: 'demo-user-001', streamerName: 'ProGamer99', status: 'RECORDED' as const, durationSecs: 2400, recordingUrl: 's3://demo-bucket/recordings/stream-002/' },
+    { id: 'demo-stream-003', title: 'Valorant Ranked Grind', streamerId: 'demo-user-001', streamerName: 'ProGamer99', status: 'ENDED' as const, durationSecs: 5400 },
+    { id: 'demo-stream-004', title: 'Rocket League Tournament', streamerId: 'demo-user-001', streamerName: 'ProGamer99', status: 'RECORDED' as const, durationSecs: 1800, recordingUrl: 's3://demo-bucket/recordings/stream-004/' },
+    { id: 'demo-stream-005', title: 'League of Legends Clash', streamerId: 'demo-user-001', streamerName: 'ProGamer99', status: 'ENDED' as const, durationSecs: 4200 },
+  ];
+
+  for (const s of sampleStreams) {
+    const startedAt = new Date(Date.now() - (Math.random() * 7 * 24 * 60 * 60 * 1000));
+    await prisma.stream.upsert({
+      where: { appId_streamerId: { appId: demoOrg.id, streamerId: s.streamerId + '-' + s.id } },
+      update: {},
+      create: {
+        id: s.id,
+        appId: demoOrg.id,
+        orgId: demoOrg.id,
+        streamerId: s.streamerId + '-' + s.id,
+        streamerName: s.streamerName,
+        title: s.title,
+        status: s.status,
+        durationSecs: s.durationSecs,
+        recordingUrl: s.recordingUrl || null,
+        startedAt,
+        endedAt: new Date(startedAt.getTime() + s.durationSecs * 1000),
+      },
+    });
+  }
+  console.log('✅ Created', sampleStreams.length, 'sample streams');
+
+  // Sample highlights
+  const sampleHighlights = [
+    { id: 'demo-hl-001', streamId: 'demo-stream-001', title: 'Highlights: Epic Fortnite Match', status: 'COMPLETED' as const, videoUrl: 'https://example.com/highlights/001.mp4', duration: 90 },
+    { id: 'demo-hl-002', streamId: 'demo-stream-002', title: 'Highlights: Minecraft Build Challenge', status: 'COMPLETED' as const, videoUrl: 'https://example.com/highlights/002.mp4', duration: 75 },
+    { id: 'demo-hl-003', streamId: 'demo-stream-004', title: 'Highlights: Rocket League Tournament', status: 'PROCESSING' as const, duration: null },
+  ];
+
+  for (const h of sampleHighlights) {
+    await prisma.highlight.upsert({
+      where: { id: h.id },
+      update: {},
+      create: {
+        id: h.id,
+        orgId: demoOrg.id,
+        streamId: h.streamId,
+        title: h.title,
+        status: h.status,
+        videoUrl: h.videoUrl || null,
+        duration: h.duration,
+        pipelineData: h.status === 'COMPLETED' ? {
+          steps: [
+            { name: 'Download', status: 'completed', duration_ms: 2300 },
+            { name: 'Analyze', status: 'completed', duration_ms: 15000 },
+            { name: 'Select Segments', status: 'completed', duration_ms: 800 },
+            { name: 'Compile', status: 'completed', duration_ms: 5200 },
+          ],
+          total_segments: 24,
+          selected_segments: 6,
+          source_duration: h.streamId === 'demo-stream-001' ? 3600 : 1800,
+        } : undefined,
+      },
+    });
+  }
+  console.log('✅ Created', sampleHighlights.length, 'sample highlights\n');
+
+  // =========================================================================
   // TEST CREDENTIALS - For internal testing
   // =========================================================================
   console.log('🧪 Creating test credentials for internal use...\n');

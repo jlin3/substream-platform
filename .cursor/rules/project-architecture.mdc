@@ -1,0 +1,37 @@
+---
+description: Architecture context for substream-platform and its relationship to substream-sdk
+alwaysApply: true
+---
+
+# Substream Architecture
+
+## Two Repos
+
+- **substream-sdk** (`~/substream-sdk`, `github.com/jlin3/substream-sdk`) — Monorepo containing:
+  - `@substream/web-sdk` (npm package, browser canvas capture → IVS Real-Time)
+  - Unity SDK (C#, WebRTC-based streaming)
+  - `IVSBackend/` — Next.js demo/operator backend (the version deployed on Railway at `substream-sdk-production.up.railway.app`)
+  - `highlight-service/` — Python FastAPI service for AI highlights (also on Railway)
+  - `docs-site/` — Docusaurus, deployed to GitHub Pages
+  - `examples/` — web-game-demo, web-viewer
+
+- **substream-platform** (this repo, `github.com/jlin3/substream-platform`) — Production multi-tenant backend:
+  - Next.js 15 + Prisma 7 + AWS IVS + Redis + BullMQ
+  - Implements the same API contract as IVSBackend (e.g. `/api/streams/web-publish`) so the SDK can point at either backend
+  - Adds: multi-tenant orgs/apps/API keys, rate limiting, structured logging, webhook persistence, edge middleware
+  - NOT yet deployed to its own Railway service; substream-sdk's IVSBackend is the currently live deployment
+
+## How They Connect
+
+The web SDK and Unity SDK talk to a `backendUrl` over HTTP:
+- `POST /api/streams/web-publish` (start stream, get IVS publish token)
+- `DELETE /api/streams/web-publish` (stop stream)
+- `POST /api/streams/{streamId}/viewer` (get subscribe token)
+
+Both IVSBackend (in substream-sdk) and this platform implement those endpoints. The SDK doesn't care which backend — it's configurable via `backendUrl`.
+
+## Deployment
+
+- Railway project `extraordinary-curiosity` hosts substream-sdk's IVSBackend + Postgres + highlight-service
+- substream-platform is NOT deployed yet (needs its own Railway service or separate infra)
+- The two repos have separate Prisma schemas and separate databases

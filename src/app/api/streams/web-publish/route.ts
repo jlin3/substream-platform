@@ -17,6 +17,7 @@ import {
 import { dispatchWebhookEvent } from '@/lib/webhooks/webhook-service';
 import { requireAuth, requireScopes, type AuthContext } from '@/lib/auth';
 import { parseBody, WebPublishStartSchema, WebPublishStopSchema } from '@/lib/validation';
+import { prisma } from '@/lib/prisma';
 import logger from '@/lib/logger';
 
 // ============================================
@@ -45,6 +46,28 @@ export async function POST(request: NextRequest) {
 
     const streamId = uuidv4();
     const allocation = await allocateStage(streamId, auth.userId, streamerId!);
+
+    // Persist the stream in the database
+    if (auth.appId) {
+      try {
+        await prisma.stream.create({
+          data: {
+            id: streamId,
+            appId: auth.appId,
+            orgId: auth.orgId || undefined,
+            streamerId: streamerId!,
+            streamerName: body.title || undefined,
+            title: body.title || undefined,
+            status: 'LIVE',
+            stageArn: allocation.stageArn,
+            startedAt: new Date(),
+            ivsChannelArn: allocation.stageArn,
+          },
+        });
+      } catch (err) {
+        logger.warn({ err }, 'Failed to create stream DB row (non-critical)');
+      }
+    }
 
     const baseUrl =
       request.headers.get('x-forwarded-host') ||
@@ -109,6 +132,38 @@ export async function DELETE(request: NextRequest) {
     }
 
     await releaseStage(stage.arn);
+
+    // Update stream record with end state and recording URL
+    try {
+      const existingStream = await prisma.stream.findUnique({
+        where: { id: parsed.data!.streamId },
+      });
+
+      if (existingStream) {
+        const now = new Date();
+        const durationSecs = existingStream.startedAt
+          ? Math.round((now.getTime() - existingStream.startedAt.getTime()) / 1000)
+          : null;
+
+        const bucket = process.env.S3_RECORDING_BUCKET;
+        const recordingUrl =
+          bucket && existingStream.stageArn
+            ? `s3://${bucket}/ivs/v1/${existingStream.stageArn.split(':').pop()}/${parsed.data!.streamId}/`
+            : null;
+
+        await prisma.stream.update({
+          where: { id: parsed.data!.streamId },
+          data: {
+            status: recordingUrl ? 'RECORDED' : 'ENDED',
+            endedAt: now,
+            durationSecs,
+            recordingUrl,
+          },
+        });
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Failed to update stream DB row on stop (non-critical)');
+    }
 
     dispatchWebhookEvent('stream.stopped', { streamId: parsed.data!.streamId });
 

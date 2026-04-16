@@ -25,10 +25,13 @@ model Organization {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  logoUrl   String?
 
-  apps    App[]
-  members OrgMember[]
-  apiKeys ApiKey[]
+  apps       App[]
+  members    OrgMember[]
+  apiKeys    ApiKey[]
+  streams    Stream[]
+  highlights Highlight[]
 
   @@index([slug])
 }
@@ -92,6 +95,7 @@ model ApiKey {
 
   lastUsedAt DateTime?
   expiresAt  DateTime?
+  revokedAt  DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -108,9 +112,12 @@ model Stream {
   id         String       @id @default(uuid())
   appId      String
   app        App          @relation(fields: [appId], references: [id], onDelete: Cascade)
+  orgId      String?
+  org        Organization? @relation(fields: [orgId], references: [id])
   streamerId String
   title      String?
   tags       String[]
+  streamerName  String?
   status     StreamStatus @default(IDLE)
 
   stageArn      String?
@@ -127,6 +134,8 @@ model Stream {
 
   vodUrl          String?
   vodThumbnailUrl String?
+  recordingUrl    String?
+  durationSecs    Int?
   vodDurationSecs Int?
 
   createdAt DateTime @default(now())
@@ -134,6 +143,7 @@ model Stream {
 
   viewerSessions StreamViewerSession[]
   chatRoom       ChatRoom?
+  highlights     Highlight[]
 
   @@unique([appId, streamerId])
   @@index([appId])
@@ -147,6 +157,7 @@ enum StreamStatus {
   IDLE
   LIVE
   ENDED
+  RECORDED
   FAILED
 }
 
@@ -436,6 +447,39 @@ model PlaybackKeyPair {
 
   @@index([isActive])
   @@index([fingerprint])
+}
+
+// ============================================
+// HIGHLIGHTS
+// ============================================
+
+model Highlight {
+  id           String          @id @default(uuid())
+  orgId        String
+  org          Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  streamId     String?
+  stream       Stream?         @relation(fields: [streamId], references: [id])
+  title        String
+  videoUrl     String?
+  thumbnailUrl String?
+  duration     Int?
+  status       HighlightStatus @default(PENDING)
+  jobId        String?         @unique
+  pipelineData Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([orgId])
+  @@index([streamId])
+  @@index([status])
+  @@index([jobId])
+}
+
+enum HighlightStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 // ============================================
