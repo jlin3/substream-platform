@@ -62,10 +62,21 @@ function corsHeaders(origin: string): Record<string, string> {
   };
 }
 
+const SESSION_COOKIE = 'lw_session';
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Only apply to API routes
+  // Dashboard session gate: redirect to /login if no session cookie
+  if (pathname.startsWith('/dashboard')) {
+    const session = request.cookies.get(SESSION_COOKIE)?.value;
+    if (!session) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // Below this: API route handling only
   if (!pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
@@ -102,5 +113,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: ['/api/:path*', '/dashboard/:path*'],
 };
