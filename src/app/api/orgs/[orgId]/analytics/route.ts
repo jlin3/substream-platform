@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, type AuthContext } from '@/lib/auth';
+import logger from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -104,7 +105,7 @@ export async function GET(
       apps: perApp,
     });
   } catch (error) {
-    console.error('[Analytics] Error:', error);
+    logger.error({ err: error }, '[Analytics] Error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

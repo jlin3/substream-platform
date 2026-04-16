@@ -16,6 +16,7 @@ import {
   createParticipantToken,
 } from './ivs-realtime-client';
 import { redis, isRedisAvailable } from '../redis';
+import logger from '@/lib/logger';
 
 // ============================================
 // TYPES
@@ -102,12 +103,12 @@ class StagePoolAllocator {
     if (this.initialized) return;
 
     this.useRedis = await isRedisAvailable();
-    console.log(`[StagePool] Redis ${this.useRedis ? 'connected' : 'unavailable — using memory fallback'}`);
+    logger.info('[StagePool] Redis %s', this.useRedis ? 'connected' : 'unavailable — using memory fallback');
 
     await this.loadExistingStages();
     this.startReplenishLoop();
     this.initialized = true;
-    console.log(`[StagePool] Initialized — ${await this.getAvailableCount()} available stages`);
+    logger.info('[StagePool] Initialized — %d available stages', await this.getAvailableCount());
   }
 
   // ----------------------------------------
@@ -212,7 +213,7 @@ class StagePoolAllocator {
         }
       }
     } catch (error) {
-      console.error('[StagePool] Error loading existing stages:', error);
+      logger.error({ err: error }, '[StagePool] Error loading existing stages');
     }
   }
 
@@ -248,13 +249,13 @@ class StagePoolAllocator {
       );
 
       if (toCreate > 0) {
-        console.log(`[StagePool] Creating ${toCreate} stages (available: ${available}, target: ${this.config.targetPoolSize})`);
+        logger.info('[StagePool] Creating %d stages (available: %d, target: %d)', toCreate, available, this.config.targetPoolSize);
         for (let i = 0; i < toCreate; i++) {
           try {
             await this.createPoolStage();
             await new Promise((r) => setTimeout(r, 250));
           } catch (error) {
-            console.error('[StagePool] Error creating stage:', error);
+            logger.error({ err: error }, '[StagePool] Error creating stage');
             break;
           }
         }
@@ -318,7 +319,7 @@ class StagePoolAllocator {
     let stage = await this.popAvailable();
 
     if (!stage) {
-      console.log('[StagePool] Pool empty — creating on-demand');
+      logger.info('[StagePool] Pool empty — creating on-demand');
       stage = await this.createPoolStage();
       // Re-pop since createPoolStage adds to available set
       const popped = await this.popAvailable();
@@ -379,7 +380,7 @@ class StagePoolAllocator {
     try {
       await deleteStage(stageArn);
     } catch (error) {
-      console.error(`[StagePool] Error deleting stage ${stageArn}:`, error);
+      logger.error({ err: error }, '[StagePool] Error deleting stage %s', stageArn);
     }
     await this.removeInUse(stageArn);
     this.replenish().catch(() => {});

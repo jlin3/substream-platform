@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, requireScopes, type AuthContext } from '@/lib/auth';
 import { signJwt } from '@/lib/auth/jwt';
+import logger from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -66,7 +67,7 @@ export async function POST(
       userId: body.userId,
     });
   } catch (error) {
-    console.error('[Tokens] Error:', error);
+    logger.error({ err: error }, '[Tokens] Error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

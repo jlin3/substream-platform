@@ -19,6 +19,7 @@ function isValidStageArn(arn: string): boolean {
   return /^arn:aws:ivs:[a-z0-9-]+:\d+:stage\/[A-Za-z0-9]+$/.test(arn);
 }
 import { StreamingError } from '@/lib/streaming/types';
+import logger from '@/lib/logger';
 
 interface SignalingRequest {
   stageArn: string;
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response, { status: 501 });
     
   } catch (error) {
-    console.error('[Signal] Error:', error);
+    logger.error({ err: error }, '[Signal] Error');
     
     if (error instanceof StreamingError) {
       return NextResponse.json(

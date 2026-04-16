@@ -13,12 +13,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionInfo, endStreamSession, StreamingError } from '@/lib/streaming';
 import { endRealTimeSession } from '@/lib/streaming/stream-realtime-service';
 import { requireAuth, type AuthContext } from '@/lib/auth';
+import logger from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
+    const authResult = await requireAuth(request);
+    if (authResult instanceof NextResponse) return authResult;
+
     const { sessionId } = await params;
     
     const session = await getSessionInfo(sessionId);
@@ -32,7 +36,7 @@ export async function GET(
 
     return NextResponse.json(session);
   } catch (error) {
-    console.error('Get session error:', error);
+    logger.error({ err: error }, 'Get session error');
 
     if (error instanceof StreamingError) {
       return NextResponse.json(
@@ -73,7 +77,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('End session error:', error);
+    logger.error({ err: error }, 'End session error');
 
     if (error instanceof StreamingError) {
       return NextResponse.json(

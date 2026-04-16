@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, type AuthContext } from '@/lib/auth';
+import { parseBody, CreateAppSchema } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -33,13 +35,15 @@ export async function POST(
       }
     }
 
-    const body = await request.json();
-    if (!body.name || typeof body.name !== 'string') {
+    const raw = await request.json();
+    const parsed = parseBody(CreateAppSchema, raw);
+    if (parsed.error) {
       return NextResponse.json(
-        { error: 'Missing or invalid "name"', code: 'INVALID_PARAMS' },
+        { error: parsed.error, code: 'INVALID_PARAMS' },
         { status: 400 },
       );
     }
+    const body = parsed.data;
 
     const app = await prisma.app.create({
       data: {
@@ -54,7 +58,7 @@ export async function POST(
       { status: 201 },
     );
   } catch (error) {
-    console.error('[Apps] Create error:', error);
+    logger.error({ err: error }, '[Apps] Create error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -101,7 +105,7 @@ export async function GET(
       })),
     });
   } catch (error) {
-    console.error('[Apps] List error:', error);
+    logger.error({ err: error }, '[Apps] List error');
     return NextResponse.json(
       { error: 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },

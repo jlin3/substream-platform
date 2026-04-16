@@ -15,7 +15,9 @@
     "db:seed": "tsx scripts/seed-test-data.ts",
     "setup": "pnpm install && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
     "ivs:setup": "tsx scripts/setup-ivs-realtime.ts",
-    "ivs:cleanup": "tsx scripts/cleanup-ivs-realtime.ts"
+    "ivs:cleanup": "tsx scripts/cleanup-ivs-realtime.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@aws-sdk/client-ivs": "^3.940.0",
@@ -52,7 +54,8 @@
     "prisma": "^7.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5",
-    "typescript-eslint": "^8.56.1"
+    "typescript-eslint": "^8.56.1",
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=18"

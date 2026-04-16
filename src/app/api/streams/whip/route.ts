@@ -15,6 +15,8 @@ import {
   findStageByStreamId,
 } from '@/lib/streaming/stage-pool';
 import { requireAuth, requireScopes, type AuthContext } from '@/lib/auth';
+import { parseBody, WhipStartSchema, WhipStopSchema } from '@/lib/validation';
+import logger from '@/lib/logger';
 
 const IVS_MEDIA_CONSTRAINTS = {
   videoCodec: 'H.264',
@@ -44,18 +46,19 @@ export async function POST(request: NextRequest) {
     const scopeErr = requireScopes(auth, ['streams:write']);
     if (scopeErr) return scopeErr;
 
-    const body = await request.json();
-    const streamerId: string | undefined = body.streamerId || body.childId;
-
-    if (!streamerId) {
+    const raw = await request.json();
+    const parsed = parseBody(WhipStartSchema, raw);
+    if (parsed.error) {
       return NextResponse.json(
-        { error: 'Missing streamerId (or childId)', code: 'INVALID_PARAMS' },
+        { error: parsed.error, code: 'INVALID_PARAMS' },
         { status: 400 },
       );
     }
+    const body = parsed.data;
+    const streamerId = body.streamerId || body.childId;
 
     const streamId = uuidv4();
-    const allocation = await allocateStage(streamId, auth.userId, streamerId);
+    const allocation = await allocateStage(streamId, auth.userId, streamerId!);
 
     return NextResponse.json(
       {
@@ -71,7 +74,7 @@ export async function POST(request: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
-    console.error('[WHIP] Error starting stream:', error);
+    logger.error({ err: error }, '[WHIP] Error starting stream');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -88,15 +91,16 @@ export async function DELETE(request: NextRequest) {
     const authResult = await requireAuth(request);
     if (authResult instanceof NextResponse) return authResult;
 
-    const body = await request.json();
-    if (!body.streamId) {
+    const raw = await request.json();
+    const parsed = parseBody(WhipStopSchema, raw);
+    if (parsed.error) {
       return NextResponse.json(
-        { error: 'Missing streamId', code: 'INVALID_PARAMS' },
+        { error: parsed.error, code: 'INVALID_PARAMS' },
         { status: 400 },
       );
     }
 
-    const stage = await findStageByStreamId(body.streamId);
+    const stage = await findStageByStreamId(parsed.data.streamId);
     if (!stage) {
       return NextResponse.json(
         { error: 'Stream not found', code: 'NOT_FOUND' },
@@ -105,9 +109,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     await releaseStage(stage.arn);
-    return NextResponse.json({ success: true, streamId: body.streamId });
+    return NextResponse.json({ success: true, streamId: parsed.data.streamId });
   } catch (error) {
-    console.error('[WHIP] Error stopping stream:', error);
+    logger.error({ err: error }, '[WHIP] Error stopping stream');
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal error', code: 'INTERNAL_ERROR' },
       { status: 500 },
@@ -119,7 +123,10 @@ export async function DELETE(request: NextRequest) {
 // GET - WHIP Status and Pool Info
 // ============================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireAuth(request);
+  if (authResult instanceof NextResponse) return authResult;
+
   const region = process.env.AWS_REGION || 'us-east-1';
   const poolStatus = await getStagePoolStatus();
   return NextResponse.json({

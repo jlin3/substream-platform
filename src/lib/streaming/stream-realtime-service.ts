@@ -26,6 +26,7 @@ import {
   StreamingErrorCode,
 } from './types';
 import { prisma } from '../prisma';
+import logger from '@/lib/logger';
 
 // ============================================
 // TYPES
@@ -349,7 +350,7 @@ export async function getRealTimePlaybackForParent(
     viewerToken = tokenResponse.token;
     viewerParticipantId = tokenResponse.participantId;
   } catch (error) {
-    console.warn('[RealTime] Could not create viewer token:', error);
+    logger.warn({ err: error }, '[RealTime] Could not create viewer token');
   }
 
   return {
@@ -429,7 +430,7 @@ export async function createRealTimeSession(
 
     if (!isActuallyLive) {
       // Session exists but no one is streaming - end it to allow restart
-      console.log(`[RealTime] Ending inactive session ${activeSession.id} to allow restart`);
+      logger.info('[RealTime] Ending inactive session %s to allow restart', activeSession.id);
       await prisma.childStreamSession.update({
         where: { id: activeSession.id },
         data: {
@@ -493,9 +494,9 @@ export async function createRealTimeSession(
         destinations,
         idempotencyToken: session.id,
       });
-      console.log('[RealTime] Started composition for HLS/recording');
+      logger.info('[RealTime] Started composition for HLS/recording');
     } catch (error) {
-      console.warn('[RealTime] Could not start composition:', error);
+      logger.warn({ err: error }, '[RealTime] Could not start composition');
       // Non-fatal - WebRTC viewing still works
     }
   }
@@ -565,11 +566,11 @@ export async function endRealTimeSession(
       for (const comp of compositions) {
         if (comp.state === 'ACTIVE' && comp.arn) {
           await stopComposition(comp.arn);
-          console.log('[RealTime] Stopped composition');
+          logger.info('[RealTime] Stopped composition');
         }
       }
     } catch (error) {
-      console.warn('[RealTime] Could not stop composition:', error);
+      logger.warn({ err: error }, '[RealTime] Could not stop composition');
     }
   }
 
@@ -626,7 +627,7 @@ export async function checkRealTimeHealth(): Promise<{
       const stage = await getStage(stageArn);
       stageExists = !!stage;
     } catch (error) {
-      console.warn('[RealTime] Stage check failed:', error);
+      logger.warn({ err: error }, '[RealTime] Stage check failed');
     }
   }
 

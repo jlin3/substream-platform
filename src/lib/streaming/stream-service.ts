@@ -22,6 +22,7 @@ import {
 import { generatePlaybackToken } from './playback-auth';
 import { encryptStreamKey, decryptStreamKey, isEncrypted } from './encryption';
 import { prisma } from '../prisma';
+import logger from '@/lib/logger';
 
 // ============================================
 // CHANNEL LIFECYCLE
@@ -94,7 +95,7 @@ export async function ensureChannelForChild(childId: string): Promise<{
     }
   } catch (error) {
     // If stream key creation fails due to quota, try to list and use existing
-    console.error('Stream key creation error, checking for existing keys:', error);
+    logger.error({ err: error }, 'Stream key creation error, checking for existing keys');
     const existingKeys = await listStreamKeys(ivsChannel.arn);
     if (existingKeys.length > 0) {
       streamKey = existingKeys[0];
@@ -347,7 +348,7 @@ export async function createStreamSession(
     
     if (!isActuallyLive && sessionAge > TWO_HOURS) {
       // Auto-cleanup stale session
-      console.log(`[Stream] Auto-cleaning stale session ${activeSession.id}`);
+      logger.info('[Stream] Auto-cleaning stale session %s', activeSession.id);
       await prisma.childStreamSession.update({
         where: { id: activeSession.id },
         data: {
@@ -362,7 +363,7 @@ export async function createStreamSession(
       });
     } else if (!isActuallyLive) {
       // Session exists but stream isn't actually live - end it to allow restart
-      console.log(`[Stream] Ending inactive session ${activeSession.id} to allow restart`);
+      logger.info('[Stream] Ending inactive session %s to allow restart', activeSession.id);
       await prisma.childStreamSession.update({
         where: { id: activeSession.id },
         data: {

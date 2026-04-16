@@ -16,6 +16,7 @@ import { createHmac, randomUUID } from 'crypto';
 import { Queue, Worker } from 'bullmq';
 import { prisma } from '../prisma';
 import { redis, isRedisAvailable } from '../redis';
+import logger from '@/lib/logger';
 
 // ============================================
 // TYPES
@@ -94,7 +95,7 @@ async function getQueue(): Promise<Queue | null> {
   );
 
   webhookWorker.on('failed', (job, err) => {
-    console.warn(`[Webhooks] Job ${job?.id} failed:`, err.message);
+    logger.warn('[Webhooks] Job %s failed: %s', job?.id, err.message);
   });
 
   return webhookQueue;
@@ -203,7 +204,7 @@ export function dispatchWebhookEvent(
 
   // DB-persisted registrations (async, best-effort)
   dispatchToDbEndpoints(event, payload).catch((err) =>
-    console.error('[Webhooks] DB dispatch error:', err),
+    logger.error({ err }, '[Webhooks] DB dispatch error'),
   );
 }
 
@@ -231,7 +232,7 @@ async function enqueueOrDeliver(
 
   // Fallback: fire-and-forget in memory
   deliverWithRetry(endpoint, payload).catch((err) =>
-    console.error(`[Webhooks] Delivery failed for ${endpoint.id}:`, err),
+    logger.error({ err }, '[Webhooks] Delivery failed for %s', endpoint.id),
   );
 }
 
