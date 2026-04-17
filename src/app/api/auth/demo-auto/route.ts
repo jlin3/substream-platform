@@ -4,8 +4,14 @@ import { createSessionToken, COOKIE_NAME } from '@/lib/auth/session';
 
 const DEMO_SLUG = 'substream-demo';
 
+function getOrigin(request: NextRequest): string {
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3000';
+  return `${proto}://${host}`;
+}
+
 export async function GET(request: NextRequest) {
-  const origin = request.nextUrl.origin;
+  const origin = getOrigin(request);
 
   try {
     const org = await prisma.organization.findUnique({
