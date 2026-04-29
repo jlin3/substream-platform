@@ -22,6 +22,15 @@ interface PipelineSegment {
   score: number;
   label: string;
   selected: boolean;
+  rationale?: string;
+  reason?: string;
+}
+
+interface QualityReview {
+  score: number;
+  threshold?: number;
+  attempts?: number;
+  notes?: string;
 }
 
 interface PipelineData {
@@ -31,6 +40,11 @@ interface PipelineData {
   segments_selected: number;
   processing_time_seconds: number;
   model: string;
+  genre?: string;
+  output_preset?: string;
+  game_detected?: string;
+  genre_detected?: string;
+  quality_review?: QualityReview;
   steps: PipelineStep[];
   segments: PipelineSegment[];
 }
@@ -38,10 +52,31 @@ interface PipelineData {
 const STEP_ICONS: Record<string, string> = {
   Download: '↓',
   'Scene Analysis': '◎',
+  'Whole-Video Analysis': '◎',
   'Audio Analysis': '♫',
   'Segment Scoring': '✦',
   'Highlight Selection': '⊕',
+  'Quality Review': '★',
   Assembly: '⧉',
+};
+
+const GENRE_LABELS: Record<string, string> = {
+  fps: 'FPS',
+  moba: 'MOBA',
+  battle_royale: 'Battle Royale',
+  sports: 'Sports',
+  racing: 'Racing',
+  rpg: 'RPG',
+  strategy: 'Strategy',
+  fighting: 'Fighting',
+  simulation: 'Simulation',
+  other: 'Auto-detect',
+};
+
+const PRESET_LABELS: Record<string, string> = {
+  social: 'Social 9:16',
+  standard: 'Standard 16:9',
+  extended: 'Extended 16:9',
 };
 
 export default async function HighlightDetailPage({
@@ -223,11 +258,28 @@ export default async function HighlightDetailPage({
         <>
           {/* How the AI Agent Works */}
           <section className="space-y-5">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h2 className="text-xl font-bold">How the AI Agent Works</h2>
               <span className="text-xs px-2 py-0.5 rounded-full bg-brand-600/20 text-brand-400 font-medium">
                 {pipeline.model}
               </span>
+              {(pipeline.genre || pipeline.genre_detected) && (
+                <span className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-white/60">
+                  {GENRE_LABELS[pipeline.genre || pipeline.genre_detected || ''] ||
+                    pipeline.genre ||
+                    pipeline.genre_detected}
+                </span>
+              )}
+              {pipeline.output_preset && (
+                <span className="text-xs px-2 py-0.5 rounded-full border border-white/10 text-white/60">
+                  {PRESET_LABELS[pipeline.output_preset] || pipeline.output_preset}
+                </span>
+              )}
+              {pipeline.quality_review && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-success/15 text-success font-medium">
+                  Review {pipeline.quality_review.score}/100
+                </span>
+              )}
             </div>
 
             {/* Pipeline flow — horizontal steps */}
@@ -298,6 +350,10 @@ export default async function HighlightDetailPage({
               />
               <StatBox label="Processing" value={formatDuration(pipeline.processing_time_seconds)} />
             </div>
+
+            {pipeline.quality_review && (
+              <QualityReviewCard review={pipeline.quality_review} />
+            )}
           </section>
 
           {/* ================================================================= */}
@@ -325,10 +381,49 @@ export default async function HighlightDetailPage({
 
 /* ───────────────────────── Sub-components ───────────────────────── */
 
+function QualityReviewCard({ review }: { review: QualityReview }) {
+  const score = review.score;
+  const threshold = review.threshold ?? 60;
+  const passed = score >= threshold;
+  const barColor = passed ? 'bg-success' : 'bg-danger';
+  return (
+    <div className="rounded-xl border border-white/10 bg-surface-100 p-5 space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Quality self-review</h3>
+          <p className="text-xs text-white/40 mt-0.5">
+            Gemini scored the assembled reel before publishing.
+            {typeof review.attempts === 'number' && (
+              <> Accepted on attempt {review.attempts}.</>
+            )}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-bold">
+            <span className={passed ? 'text-success' : 'text-danger'}>{score}</span>
+            <span className="text-white/30 text-sm font-normal">/100</span>
+          </p>
+          <p className="text-[10px] uppercase tracking-wide text-white/30">
+            threshold {threshold}
+          </p>
+        </div>
+      </div>
+      <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+        <div className={`h-full ${barColor}`} style={{ width: `${Math.min(score, 100)}%` }} />
+      </div>
+      {review.notes && (
+        <p className="text-xs text-white/50 italic border-l-2 border-white/10 pl-3">
+          “{review.notes}”
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SegmentTable({ segments }: { segments: PipelineSegment[] }) {
   const selected = segments.filter((s) => s.selected).sort((a, b) => b.score - a.score);
   const rejected = segments.filter((s) => !s.selected).sort((a, b) => b.score - a.score);
-  const maxScore = Math.max(...segments.map((s) => s.score));
+  const maxScore = Math.max(...segments.map((s) => s.score), 1);
 
   return (
     <div className="rounded-xl border border-white/10 bg-surface-100 overflow-hidden">
@@ -375,7 +470,14 @@ function SegmentTable({ segments }: { segments: PipelineSegment[] }) {
                     <span className="text-xs font-medium w-6 text-right">{seg.score}</span>
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-xs">{seg.label}</td>
+                <td className="px-3 py-2.5 text-xs">
+                  <p>{seg.label}</p>
+                  {(seg.rationale || seg.reason) && (
+                    <p className="text-[11px] text-white/40 mt-0.5 italic">
+                      {seg.rationale || seg.reason}
+                    </p>
+                  )}
+                </td>
                 <td className="px-3 py-2.5 text-right pr-5">
                   <span className="text-xs text-success font-medium">Selected</span>
                 </td>
@@ -398,7 +500,14 @@ function SegmentTable({ segments }: { segments: PipelineSegment[] }) {
                     <span className="text-xs text-white/20 w-6 text-right">{seg.score}</span>
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-xs text-white/20">{seg.label}</td>
+                <td className="px-3 py-2.5 text-xs text-white/30">
+                  <p>{seg.label}</p>
+                  {(seg.rationale || seg.reason) && (
+                    <p className="text-[11px] text-white/20 mt-0.5 italic">
+                      {seg.rationale || seg.reason}
+                    </p>
+                  )}
+                </td>
                 <td className="px-3 py-2.5 text-right pr-5">
                   <span className="text-xs text-white/15">Rejected</span>
                 </td>

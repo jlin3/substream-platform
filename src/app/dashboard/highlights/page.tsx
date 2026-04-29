@@ -20,7 +20,28 @@ export default async function HighlightsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Highlights</h1>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Highlights</h1>
+          <p className="text-xs text-white/40 mt-1">
+            AI-generated reels for {session.orgName}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/highlights/compare"
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium hover:bg-surface-200 transition-colors"
+          >
+            A/B compare
+          </Link>
+          <Link
+            href="/dashboard/highlights/training"
+            className="rounded-lg bg-brand-600/20 text-brand-400 border border-brand-500/30 px-3 py-1.5 text-xs font-medium hover:bg-brand-600/30 transition-colors"
+          >
+            Training data
+          </Link>
+        </div>
+      </div>
 
       {highlights.length === 0 ? (
         <div className="rounded-xl border border-white/10 bg-surface-100 px-5 py-16 text-center space-y-2">

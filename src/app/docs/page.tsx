@@ -59,7 +59,8 @@ streamControl.StartStreaming(); // or press 'U'`,
       },
       {
         title: 'Webhooks',
-        description: 'Register webhook endpoints to receive real-time notifications. Events include stream.started, stream.stopped, viewer.joined, and viewer.left. Payloads are HMAC-signed for security.',
+        description:
+          'Register webhook endpoints to receive real-time notifications. Events include stream.started, stream.stopped, viewer.joined, viewer.left, highlight.created, highlight.completed, and highlight.failed. Payloads are HMAC-signed (X-Substream-Signature) for integrity verification.',
       },
     ],
   },
