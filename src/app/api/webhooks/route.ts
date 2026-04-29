@@ -26,6 +26,9 @@ const VALID_EVENTS: WebhookEvent[] = [
   'stream.stopped',
   'viewer.joined',
   'viewer.left',
+  'highlight.created',
+  'highlight.completed',
+  'highlight.failed',
 ];
 
 const CORS_HEADERS = {

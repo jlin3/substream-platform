@@ -286,7 +286,15 @@ async def _run_job(
 
 
 async def _send_webhook(callback_url: str, job_id: str, status: str, data: dict) -> bool:
-    """POST job results to the callback URL. Returns True if delivered successfully."""
+    """POST job results to the callback URL. Returns True if delivered successfully.
+
+    When `HIGHLIGHT_CALLBACK_SECRET` is configured, the body is signed with
+    HMAC-SHA256 and the signature is sent in `X-Substream-Signature`.
+    """
+    import hashlib
+    import hmac
+    import json as json_mod
+
     import config as cfg
 
     payload = {
@@ -294,10 +302,26 @@ async def _send_webhook(callback_url: str, job_id: str, status: str, data: dict)
         "status": status,
         **data,
     }
+
+    body_bytes = json_mod.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-Substream-Event": f"highlight.{status}",
+        "X-Substream-Delivery": job_id,
+    }
+    if cfg.HIGHLIGHT_CALLBACK_SECRET:
+        sig = hmac.new(
+            cfg.HIGHLIGHT_CALLBACK_SECRET.encode("utf-8"),
+            body_bytes,
+            hashlib.sha256,
+        ).hexdigest()
+        headers["X-Substream-Signature"] = f"sha256={sig}"
+
     try:
         timeout = httpx.Timeout(connect=5.0, read=cfg.WEBHOOK_TIMEOUT_SECONDS, write=5.0, pool=5.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.post(callback_url, json=payload)
+            response = await client.post(callback_url, content=body_bytes, headers=headers)
             logger.info("Webhook sent to %s: status=%d", callback_url, response.status_code)
             return 200 <= response.status_code < 300
     except Exception:

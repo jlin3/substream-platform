@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/session';
+import { dispatchWebhookEvent } from '@/lib/webhooks/webhook-service';
 import logger from '@/lib/logger';
+
+function resolveCallbackUrl(request: NextRequest): string | undefined {
+  const fromEnv = process.env.PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL;
+  let base = fromEnv;
+
+  if (!base) {
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host');
+    const proto = request.headers.get('x-forwarded-proto') || 'https';
+    if (host) base = `${proto}://${host}`;
+  }
+
+  if (!base) return undefined;
+  return `${base.replace(/\/$/, '')}/api/internal/highlight-callback`;
+}
 
 export async function GET(
   request: NextRequest,
@@ -61,6 +76,13 @@ export async function POST(
   }
 
   const highlightServiceUrl = process.env.HIGHLIGHT_SERVICE_URL || 'http://localhost:8080';
+  const callbackUrl = resolveCallbackUrl(request);
+
+  const requestedGenre: string | undefined = typeof body.genre === 'string' ? body.genre : undefined;
+  const requestedPreset: string | undefined =
+    typeof body.outputPreset === 'string' ? body.outputPreset : undefined;
+  const requestedDuration: number | undefined =
+    typeof body.targetDurationSeconds === 'number' ? body.targetDurationSeconds : undefined;
 
   let jobId: string | null = null;
   let hlStatus: 'PENDING' | 'PROCESSING' = 'PENDING';
@@ -75,6 +97,10 @@ export async function POST(
         body: JSON.stringify({
           video_uri: stream.recordingUrl,
           title: `Highlights: ${stream.title || 'Untitled Stream'}`,
+          game_title: requestedGenre ?? stream.title ?? undefined,
+          output_preset: requestedPreset,
+          target_duration_seconds: requestedDuration,
+          callback_url: callbackUrl,
         }),
         signal: controller.signal,
       });
@@ -83,6 +109,11 @@ export async function POST(
         const hlData = await hlRes.json();
         jobId = hlData.job_id || null;
         hlStatus = 'PROCESSING';
+      } else {
+        logger.warn(
+          { status: hlRes.status, streamId },
+          '[highlights] service POST returned non-2xx',
+        );
       }
     } catch (err) {
       logger.warn({ err, streamId }, 'Highlight service request failed');
@@ -99,6 +130,16 @@ export async function POST(
       status: hlStatus,
       jobId,
     },
+  });
+
+  dispatchWebhookEvent('highlight.created', {
+    orgId: session.orgId,
+    orgSlug: slug,
+    highlightId: highlight.id,
+    streamId: stream.id,
+    title: highlight.title,
+    jobId,
+    createdAt: highlight.createdAt.toISOString(),
   });
 
   return NextResponse.json({ highlight }, { status: 201 });

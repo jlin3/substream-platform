@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createSessionToken, COOKIE_NAME } from '@/lib/auth/session';
+import { captureServerEvent } from '@/lib/posthog-server';
 
 const DEMO_SLUG = 'substream-demo';
 
@@ -26,6 +27,12 @@ export async function GET(request: NextRequest) {
       orgId: org.id,
       orgSlug: org.slug,
       orgName: org.name,
+    });
+
+    captureServerEvent(org.id, 'demo_login', {
+      orgSlug: org.slug,
+      flow: 'demo-auto',
+      referer: request.headers.get('referer') ?? null,
     });
 
     const response = NextResponse.redirect(`${origin}/dashboard`);

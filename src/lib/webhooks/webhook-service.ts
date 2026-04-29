@@ -6,10 +6,13 @@
  * in-memory delivery when Redis is unavailable.
  *
  * Supported events:
- *   stream.started  — game starts publishing
- *   stream.stopped  — game stops publishing
- *   viewer.joined   — viewer connects to watch
- *   viewer.left     — viewer disconnects
+ *   stream.started       — game starts publishing
+ *   stream.stopped       — game stops publishing
+ *   viewer.joined        — viewer connects to watch
+ *   viewer.left          — viewer disconnects
+ *   highlight.created    — highlight job accepted
+ *   highlight.completed  — AI-generated reel is ready
+ *   highlight.failed     — highlight job failed
  */
 
 import { createHmac, randomUUID } from 'crypto';
@@ -26,7 +29,10 @@ export type WebhookEvent =
   | 'stream.started'
   | 'stream.stopped'
   | 'viewer.joined'
-  | 'viewer.left';
+  | 'viewer.left'
+  | 'highlight.created'
+  | 'highlight.completed'
+  | 'highlight.failed';
 
 export interface WebhookRegistration {
   id: string;

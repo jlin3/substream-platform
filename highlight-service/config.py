@@ -53,6 +53,12 @@ DEFAULT_OUTPUT_PRESET = os.environ.get("DEFAULT_OUTPUT_PRESET", "standard")
 # Webhook delivery
 WEBHOOK_TIMEOUT_SECONDS = int(os.environ.get("WEBHOOK_TIMEOUT_SECONDS", "30"))
 
+# Shared HMAC secret for signing job-completion callbacks. When set, the
+# highlight-service adds `X-Substream-Signature: sha256=<hex>` and
+# `X-Substream-Event: highlight.<status>` headers so the calling platform can
+# verify the callback came from us. Leave empty to disable signing (local dev).
+HIGHLIGHT_CALLBACK_SECRET = os.environ.get("HIGHLIGHT_CALLBACK_SECRET", "")
+
 # AWS S3 configuration (for recordings from IVS)
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 S3_RECORDING_BUCKET = os.environ.get("S3_RECORDING_BUCKET", "")

@@ -11,7 +11,9 @@ interface VideoPlayerProps {
 export default function VideoPlayer({ url, poster, autoPlay }: VideoPlayerProps) {
   const [playing, setPlaying] = useState(false);
 
-  const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+  const ytPrefix = 'youtube:';
+  const isYouTubePrefix = url.startsWith(ytPrefix);
+  const isYouTube = isYouTubePrefix || url.includes('youtube.com') || url.includes('youtu.be');
 
   if (isYouTube && !playing) {
     return (
@@ -34,9 +36,11 @@ export default function VideoPlayer({ url, poster, autoPlay }: VideoPlayerProps)
   }
 
   if (isYouTube) {
-    const videoId = url.includes('youtu.be')
-      ? url.split('/').pop()
-      : new URL(url).searchParams.get('v');
+    const videoId = isYouTubePrefix
+      ? url.slice(ytPrefix.length)
+      : url.includes('youtu.be')
+        ? url.split('/').pop()
+        : new URL(url).searchParams.get('v');
     return (
       <div className="w-full aspect-video rounded-lg overflow-hidden">
         <iframe
